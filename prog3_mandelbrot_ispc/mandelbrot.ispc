@@ -23,8 +23,8 @@ export void mandelbrot_ispc(uniform float x0, uniform float y0,
                             uniform int maxIterations,
                             uniform int output[])
 {
-    float dx = (x1 - x0) / width;
-    float dy = (y1 - y0) / height;
+    uniform float dx = (x1 - x0) / width;
+    uniform float dy = (y1 - y0) / height;
 
     foreach (j = 0 ... height, i = 0 ... width) {
             float x = x0 + i * dx;
@@ -63,15 +63,25 @@ task void mandelbrot_ispc_task(uniform float x0, uniform float y0,
 
 export void mandelbrot_ispc_withtasks(uniform float x0, uniform float y0,
                                       uniform float x1, uniform float y1,
-                                      uniform int width, uniform int height,
+                                       uniform int width, uniform int height,
                                       uniform int maxIterations,
-                                      uniform int output[])
+                                      uniform int output[],
+                                      uniform int taskCount)
 {
 
-    uniform int rowsPerTask = height / 2;
+    if(taskCount <= 0){
+        taskCount = 1;
+    }
 
-    // create 2 tasks
-    launch[2] mandelbrot_ispc_task(x0, y0, x1, y1,
+    if(height % taskCount != 0){
+        taskCount = 1;
+    }
+
+    uniform int rowsPerTask = height / taskCount;
+
+
+    // create tasks
+    launch[taskCount] mandelbrot_ispc_task(x0, y0, x1, y1,
                                      width, height,
                                      rowsPerTask,
                                      maxIterations,
