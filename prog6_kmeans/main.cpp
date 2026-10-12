@@ -6,6 +6,7 @@
 #include <iostream>
 #include <random>
 #include <string>
+#include <vector>
 
 #include "CycleTimer.h"
 
@@ -20,6 +21,9 @@ extern void kMeansThread(double* data, double* clusterCentroids,
                          double epsilon);
 extern double dist(double* x, double* y, int nDim);
 
+extern void kMeansThreadParalleled(double* data, double* clusterCentroids,
+                                   int* clusterAssignments, int M, int N, int K,
+                                   double epsilon);
 // Utilities
 extern void logToFile(string filename, double sampleRate, double* data,
                       int* clusterAssignments, double* clusterCentroids, int M,
@@ -136,10 +140,36 @@ int main() {
     logToFile("./start.log", SAMPLE_RATE, data, clusterAssignments,
               clusterCentroids, M, N, K);
 
+    // Preserve the initial state so both runs start with identical inputs.
+    const vector<double> initialCentroids(clusterCentroids,
+                                          clusterCentroids + K * N);
+    const vector<int> initialAssignments(clusterAssignments,
+                                         clusterAssignments + M);
+
     double startTime = CycleTimer::currentSeconds();
     kMeansThread(data, clusterCentroids, clusterAssignments, M, N, K, epsilon);
     double endTime = CycleTimer::currentSeconds();
-    printf("[Total Time]: %.3f ms\n", (endTime - startTime) * 1000);
+    double SerialTime = (endTime - startTime) * 1000;
+    printf("[Total Time]: %.3f ms\n", SerialTime);
+
+    // Restore outside the timed region. Both algorithms only read data.
+    copy(initialCentroids.begin(), initialCentroids.end(), clusterCentroids);
+    copy(initialAssignments.begin(), initialAssignments.end(),
+         clusterAssignments);
+
+    startTime = CycleTimer::currentSeconds();
+    kMeansThreadParalleled(data, clusterCentroids, clusterAssignments, M, N, K,
+                           epsilon);
+    endTime = CycleTimer::currentSeconds();
+    double ParallelTime = (endTime - startTime) * 1000;
+    printf("[Total Time Parallel]: %.3f ms\n", ParallelTime);
+
+    printf("[Speedup]: %.3f\n", SerialTime / ParallelTime);
+    if (SerialTime / ParallelTime > 2.1) {
+        printf("[PASSED]\n");
+    } else {
+        printf("[FAILED]\n");
+    }
 
     // Log the end state of the algorithm
     logToFile("./end.log", SAMPLE_RATE, data, clusterAssignments,
